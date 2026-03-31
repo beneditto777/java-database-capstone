@@ -6,9 +6,7 @@ import com.project.back_end.models.Patient;
 import com.project.back_end.repo.AdminRepository;
 import com.project.back_end.repo.DoctorRepository;
 import com.project.back_end.repo.PatientRepository;
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -20,7 +18,6 @@ import java.util.Date;
 @Component
 public class TokenService {
 
-    // Injects the secret key defined in application.properties
     @Value("${jwt.secret}")
     private String secret;
 
@@ -28,7 +25,6 @@ public class TokenService {
     private final DoctorRepository doctorRepository;
     private final PatientRepository patientRepository;
 
-    // Constructor Injection
     public TokenService(AdminRepository adminRepository,
             DoctorRepository doctorRepository,
             PatientRepository patientRepository) {
@@ -37,35 +33,23 @@ public class TokenService {
         this.patientRepository = patientRepository;
     }
 
-    /**
-     * Retrieves the signing key used for JWT token signing.
-     */
     private SecretKey getSigningKey() {
-        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
-        return Keys.hmacShaKeyFor(keyBytes);
+        // Modern 0.12.x way to create a secure key
+        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * Generates a JWT token for a given user's identifier (email or username).
-     * Expiration is set to 7 days.
-     */
     public String generateToken(String identifier) {
         long sevenDaysInMillis = 7L * 24 * 60 * 60 * 1000;
 
+        // Modern 0.12.x builder syntax (no "set" prefixes)
         return Jwts.builder()
-                .setSubject(identifier)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + sevenDaysInMillis))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .subject(identifier)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + sevenDaysInMillis))
+                .signWith(getSigningKey())
                 .compact();
     }
 
-    /**
-     * Helper Overload: Generates a token specifically using an ID and Role if
-     * needed by other services.
-     * We map the ID back to their email/username to keep the token subject
-     * consistent.
-     */
     public String generateToken(Long id, String role) {
         String identifier = "";
         if ("admin".equalsIgnoreCase(role)) {
@@ -84,33 +68,23 @@ public class TokenService {
         return generateToken(identifier);
     }
 
-    /**
-     * Extracts the identifier (subject) from a JWT token.
-     */
     public String extractIdentifier(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
+        // Modern 0.12.x parsing syntax
+        return Jwts.parser()
+                .verifyWith(getSigningKey())
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
-        return claims.getSubject();
+                .parseSignedClaims(token)
+                .getPayload()
+                .getSubject();
     }
 
-    /**
-     * Alias for extractIdentifier to match specific service calls.
-     */
     public String extractEmail(String token) {
         return extractIdentifier(token);
     }
 
-    /**
-     * Helper Method: Extracts the identifier and maps it back to the database ID.
-     * Crucial for Appointment checks.
-     */
     public Long extractId(String token) {
         String identifier = extractIdentifier(token);
 
-        // Try to find the user in any of the repositories to return their ID
         Patient patient = patientRepository.findByEmail(identifier);
         if (patient != null)
             return patient.getId();
@@ -126,9 +100,6 @@ public class TokenService {
         return null;
     }
 
-    /**
-     * Validates the JWT token for a given user type.
-     */
     public boolean validateToken(String token, String user) {
         try {
             String identifier = extractIdentifier(token);
@@ -143,8 +114,6 @@ public class TokenService {
 
             return false;
         } catch (Exception e) {
-            // Token is expired, malformed, or tampered with
-            System.err.println("Token validation failed: " + e.getMessage());
             return false;
         }
     }
