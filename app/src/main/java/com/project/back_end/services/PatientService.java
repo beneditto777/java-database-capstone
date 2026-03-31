@@ -1,58 +1,246 @@
 package com.project.back_end.services;
 
-public class PatientService {
-// 1. **Add @Service Annotation**:
-//    - The `@Service` annotation is used to mark this class as a Spring service component. 
-//    - It will be managed by Spring's container and used for business logic related to patients and appointments.
-//    - Instruction: Ensure that the `@Service` annotation is applied above the class declaration.
+import com.project.back_end.DTO.Login;
+import com.project.back_end.models.Appointment;
+import com.project.back_end.models.Doctor;
+import com.project.back_end.repo.AppointmentRepository;
+import com.project.back_end.repo.DoctorRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-// 2. **Constructor Injection for Dependencies**:
-//    - The `PatientService` class has dependencies on `PatientRepository`, `AppointmentRepository`, and `TokenService`.
-//    - These dependencies are injected via the constructor to maintain good practices of dependency injection and testing.
-//    - Instruction: Ensure constructor injection is used for all the required dependencies.
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
 
-// 3. **createPatient Method**:
-//    - Creates a new patient in the database. It saves the patient object using the `PatientRepository`.
-//    - If the patient is successfully saved, the method returns `1`; otherwise, it logs the error and returns `0`.
-//    - Instruction: Ensure that error handling is done properly and exceptions are caught and logged appropriately.
+@Service
+public class DoctorService {
 
-// 4. **getPatientAppointment Method**:
-//    - Retrieves a list of appointments for a specific patient, based on their ID.
-//    - The appointments are then converted into `AppointmentDTO` objects for easier consumption by the API client.
-//    - This method is marked as `@Transactional` to ensure database consistency during the transaction.
-//    - Instruction: Ensure that appointment data is properly converted into DTOs and the method handles errors gracefully.
+    private final DoctorRepository doctorRepository;
+    private final AppointmentRepository appointmentRepository;
+    private final TokenService tokenService;
 
-// 5. **filterByCondition Method**:
-//    - Filters appointments for a patient based on the condition (e.g., "past" or "future").
-//    - Retrieves appointments with a specific status (0 for future, 1 for past) for the patient.
-//    - Converts the appointments into `AppointmentDTO` and returns them in the response.
-//    - Instruction: Ensure the method correctly handles "past" and "future" conditions, and that invalid conditions are caught and returned as errors.
+    // Constructor Injection for Dependencies
+    public DoctorService(DoctorRepository doctorRepository,
+            AppointmentRepository appointmentRepository,
+            TokenService tokenService) {
+        this.doctorRepository = doctorRepository;
+        this.appointmentRepository = appointmentRepository;
+        this.tokenService = tokenService;
+    }
 
-// 6. **filterByDoctor Method**:
-//    - Filters appointments for a patient based on the doctor's name.
-//    - It retrieves appointments where the doctor’s name matches the given value, and the patient ID matches the provided ID.
-//    - Instruction: Ensure that the method correctly filters by doctor's name and patient ID and handles any errors or invalid cases.
+    /**
+     * Retrieves available time slots by filtering out booked appointments.
+     */
+    @Transactional(readOnly = true)
+    public List<String> getDoctorAvailability(Long doctorId, LocalDate date) {
+        Optional<Doctor> optionalDoctor = doctorRepository.findById(doctorId);
+        if (optionalDoctor.isEmpty()) {
+            return new ArrayList<>();
+        }
 
-// 7. **filterByDoctorAndCondition Method**:
-//    - Filters appointments based on both the doctor's name and the condition (past or future) for a specific patient.
-//    - This method combines filtering by doctor name and appointment status (past or future).
-//    - Converts the appointments into `AppointmentDTO` objects and returns them in the response.
-//    - Instruction: Ensure that the filter handles both doctor name and condition properly, and catches errors for invalid input.
+        Doctor doctor = optionalDoctor.get();
+        List<String> allSlots = new ArrayList<>(doctor.getAvailableTimes());
 
-// 8. **getPatientDetails Method**:
-//    - Retrieves patient details using the `tokenService` to extract the patient's email from the provided token.
-//    - Once the email is extracted, it fetches the corresponding patient from the `patientRepository`.
-//    - It returns the patient's information in the response body.
-    //    - Instruction: Make sure that the token extraction process works correctly and patient details are fetched properly based on the extracted email.
+        // Define start and end of the requested day
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.atTime(LocalTime.MAX);
 
-// 9. **Handling Exceptions and Errors**:
-//    - The service methods handle exceptions using try-catch blocks and log any issues that occur. If an error occurs during database operations, the service responds with appropriate HTTP status codes (e.g., `500 Internal Server Error`).
-//    - Instruction: Ensure that error handling is consistent across the service, with proper logging and meaningful error messages returned to the client.
+        // Fetch booked appointments for this doctor on this day
+        List<Appointment> bookedAppointments = appointmentRepository
+                .findByDoctorIdAndAppointmentTimeBetween(doctorId, startOfDay, endOfDay);
 
-// 10. **Use of DTOs (Data Transfer Objects)**:
-//    - The service uses `AppointmentDTO` to transfer appointment-related data between layers. This ensures that sensitive or unnecessary data (e.g., password or private patient information) is not exposed in the response.
-//    - Instruction: Ensure that DTOs are used appropriately to limit the exposure of internal data and only send the relevant fields to the client.
+        // Map booked appointments to "HH:mm-HH:mm" slot format to remove them from
+        // allSlots
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
+        for (Appointment appt : bookedAppointments) {
+            String startTime = appt.getAppointmentTime().format(timeFormatter);
+            String endTime = appt.getAppointmentTime().plusHours(1).format(timeFormatter);
+            String bookedSlot = startTime + "-" + endTime;
 
+            allSlots.remove(bookedSlot);
+        }
 
+        return allSlots;
+    }
 
+    /**
+     * Saves a new doctor if the email doesn't already exist.
+     */
+    @Transactional
+    public int saveDoctor(Doctor doctor) {
+        try {
+            if (doctorRepository.findByEmail(doctor.getEmail()) != null) {
+                return -1; // Doctor already exists
+            }
+            doctorRepository.save(doctor);
+            return 1; // Success
+        } catch (Exception e) {
+            System.err.println("Error saving doctor: " + e.getMessage());
+            return 0; // Internal error
+        }
+    }
+
+    /**
+     * Updates an existing doctor's details.
+     */
+    @Transactional
+    public int updateDoctor(Doctor doctor) {
+        try {
+            if (!doctorRepository.existsById(doctor.getId())) {
+                return -1; // Doctor not found
+            }
+            doctorRepository.save(doctor);
+            return 1; // Success
+        } catch (Exception e) {
+            System.err.println("Error updating doctor: " + e.getMessage());
+            return 0; // Internal error
+        }
+    }
+
+    /**
+     * Retrieves all doctors.
+     */
+    @Transactional(readOnly = true)
+    public List<Doctor> getDoctors() {
+        return doctorRepository.findAll();
+    }
+
+    /**
+     * Deletes a doctor and all of their associated appointments.
+     */
+    @Transactional
+    public int deleteDoctor(long id) {
+        try {
+            if (!doctorRepository.existsById(id)) {
+                return -1; // Doctor not found
+            }
+            // Delete associated appointments first to maintain referential integrity
+            appointmentRepository.deleteAllByDoctorId(id);
+            doctorRepository.deleteById(id);
+            return 1; // Success
+        } catch (Exception e) {
+            System.err.println("Error deleting doctor: " + e.getMessage());
+            return 0; // Internal error
+        }
+    }
+
+    /**
+     * Validates a doctor's login credentials.
+     */
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, String>> validateDoctor(Login login) {
+        Map<String, String> response = new HashMap<>();
+        Doctor doctor = doctorRepository.findByEmail(login.getEmail());
+
+        // In a real production app, use PasswordEncoder (e.g., BCrypt) instead of plain
+        // text equals
+        if (doctor != null && doctor.getPassword().equals(login.getPassword())) {
+            // Assuming your TokenService generates a token from the ID and Role
+            String token = tokenService.generateToken(doctor.getId(), "doctor");
+            response.put("token", token);
+            return ResponseEntity.ok(response);
+        }
+
+        response.put("message", "Invalid credentials");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    /**
+     * Finds doctors by partial name match.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> findDoctorByName(String name) {
+        List<Doctor> doctors = doctorRepository.findByNameLike(name);
+        return Map.of("doctors", doctors);
+    }
+
+    /**
+     * Filters doctors by name, specialty, and AM/PM availability.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> filterDoctorsByNameSpecilityandTime(String name, String specialty, String amOrPm) {
+        List<Doctor> doctors = doctorRepository.findByNameContainingIgnoreCaseAndSpecialtyIgnoreCase(name, specialty);
+        List<Doctor> filteredDoctors = filterDoctorByTime(doctors, amOrPm);
+        return Map.of("doctors", filteredDoctors);
+    }
+
+    /**
+     * Filters doctors by name and AM/PM availability.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> filterDoctorByNameAndTime(String name, String amOrPm) {
+        List<Doctor> doctors = doctorRepository.findByNameLike(name);
+        List<Doctor> filteredDoctors = filterDoctorByTime(doctors, amOrPm);
+        return Map.of("doctors", filteredDoctors);
+    }
+
+    /**
+     * Filters doctors by name and specialty.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> filterDoctorByNameAndSpecility(String name, String specialty) {
+        List<Doctor> doctors = doctorRepository.findByNameContainingIgnoreCaseAndSpecialtyIgnoreCase(name, specialty);
+        return Map.of("doctors", doctors);
+    }
+
+    /**
+     * Filters doctors by specialty and AM/PM availability.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> filterDoctorByTimeAndSpecility(String specialty, String amOrPm) {
+        List<Doctor> doctors = doctorRepository.findBySpecialtyIgnoreCase(specialty);
+        List<Doctor> filteredDoctors = filterDoctorByTime(doctors, amOrPm);
+        return Map.of("doctors", filteredDoctors);
+    }
+
+    /**
+     * Filters doctors by specialty only.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> filterDoctorBySpecility(String specialty) {
+        List<Doctor> doctors = doctorRepository.findBySpecialtyIgnoreCase(specialty);
+        return Map.of("doctors", doctors);
+    }
+
+    /**
+     * Filters all doctors by AM/PM availability.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> filterDoctorsByTime(String amOrPm) {
+        List<Doctor> doctors = doctorRepository.findAll();
+        List<Doctor> filteredDoctors = filterDoctorByTime(doctors, amOrPm);
+        return Map.of("doctors", filteredDoctors);
+    }
+
+    /**
+     * Private helper method to filter a list of doctors by their available times
+     * (AM or PM).
+     * Parses the start hour of their slots (e.g., "09:00-10:00" -> 9).
+     * AM is < 12, PM is >= 12.
+     */
+    private List<Doctor> filterDoctorByTime(List<Doctor> doctors, String amOrPm) {
+        if (amOrPm == null || amOrPm.isEmpty()) {
+            return doctors;
+        }
+
+        return doctors.stream().filter(doctor -> doctor.getAvailableTimes().stream().anyMatch(timeSlot -> {
+            try {
+                // Extract the first two characters (the start hour)
+                int hour = Integer.parseInt(timeSlot.split(":")[0]);
+                if (amOrPm.equalsIgnoreCase("AM")) {
+                    return hour < 12;
+                } else if (amOrPm.equalsIgnoreCase("PM")) {
+                    return hour >= 12;
+                }
+                return true;
+            } catch (Exception e) {
+                return false; // Skip malformed time strings
+            }
+        })).collect(Collectors.toList());
+    }
 }
