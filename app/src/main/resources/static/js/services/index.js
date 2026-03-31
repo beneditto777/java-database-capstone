@@ -61,15 +61,17 @@ import { openModal } from '../components/modals.js';
 // Import the base API URL from the config file
 import { API_BASE_URL } from '../config/config.js';
 
-// Define constants for the admin and doctor login API endpoints
-const ADMIN_API = API_BASE_URL + '/admin';
+// Define constants for the admin, doctor, and patient login API endpoints
+const ADMIN_API = API_BASE_URL + '/admin/login';
 const DOCTOR_API = API_BASE_URL + '/doctor/login';
+const PATIENT_API = API_BASE_URL + '/patient/login';
 
 // Use the window.onload event to ensure DOM elements are available
 window.onload = function () {
     // Select the buttons from the landing page
     const adminBtn = document.getElementById('btn-admin');
     const doctorBtn = document.getElementById('btn-doctor');
+    const patientBtn = document.getElementById('btn-patient');
 
     // Add a click event listener to show the admin login modal
     if (adminBtn) {
@@ -82,6 +84,13 @@ window.onload = function () {
     if (doctorBtn) {
         doctorBtn.addEventListener('click', () => {
             openModal('doctorLogin');
+        });
+    }
+
+    // Add a click event listener to show the patient login modal
+    if (patientBtn) {
+        patientBtn.addEventListener('click', () => {
+            openModal('patientLogin');
         });
     }
 };
@@ -188,6 +197,61 @@ window.doctorLoginHandler = async function () {
     // Step 6: Handle network or unexpected errors
     catch (error) {
         console.error("Doctor Login Error:", error);
+        alert("An error occurred while trying to log in. Please try again later.");
+    }
+};
+
+/**
+ * Handle Patient Login Submission
+ * Attached to the global window object so it can be called from HTML onclick attributes
+ */
+window.patientLoginHandler = async function () {
+    // Step 1: Get the entered email and password (Make sure these IDs match your HTML!)
+    const emailInput = document.getElementById('patientEmail');
+    const passwordInput = document.getElementById('patientPassword');
+
+    if (!emailInput || !passwordInput) {
+        console.error("Could not find patient input fields!");
+        return;
+    }
+
+    const email = emailInput.value;
+    const password = passwordInput.value;
+
+    // Step 2: Create a patient object
+    const patient = { email, password };
+
+    try {
+        // Step 3: Send POST request to PATIENT_API
+        const response = await fetch(PATIENT_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patient)
+        });
+
+        // Step 4: Handle successful response
+        if (response.ok) {
+            const data = await response.json();
+
+            // Store the token in localStorage
+            localStorage.setItem('token', data.token);
+
+            // Call the globally available selectRole function
+            if (typeof selectRole === 'function') {
+                selectRole('patient');
+            } else {
+                localStorage.setItem('userRole', 'patient');
+                window.location.href = '/pages/patientDashboard.html';
+            }
+        }
+        // Step 5: Handle failed login
+        else {
+            alert("Invalid patient credentials!");
+        }
+    }
+    // Step 6: Handle network or unexpected errors
+    catch (error) {
+        console.error("Patient Login Error:", error);
         alert("An error occurred while trying to log in. Please try again later.");
     }
 };

@@ -2,6 +2,7 @@ package com.project.back_end.models;
 
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType; // Added this import
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -41,7 +42,9 @@ public class Doctor {
     @Pattern(regexp = "^[0-9]{10}$", message = "Phone number must be exactly 10 digits")
     private String phone;
 
-    @ElementCollection
+    // THE FIX IS HERE: Grabs the available times immediately when the Doctor is
+    // loaded
+    @ElementCollection(fetch = FetchType.EAGER)
     private List<String> availableTimes;
 
     // --- Constructors ---
@@ -50,7 +53,8 @@ public class Doctor {
     public Doctor() {
     }
 
-    public Doctor(String name, String specialty, String email, String password, String phone, List<String> availableTimes) {
+    public Doctor(String name, String specialty, String email, String password, String phone,
+            List<String> availableTimes) {
         this.name = name;
         this.specialty = specialty;
         this.email = email;
