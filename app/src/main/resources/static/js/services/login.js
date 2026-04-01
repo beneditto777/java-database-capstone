@@ -8,34 +8,34 @@ const ADMIN_API = API_BASE_URL + '/admin/login';
 const DOCTOR_API = API_BASE_URL + '/doctor/login';
 const PATIENT_API = API_BASE_URL + '/patient/login';
 
-// Use the window.onload event to ensure DOM elements are available
-window.onload = function () {
-    // Select the buttons from the landing page
-    const adminBtn = document.getElementById('btn-admin');
-    const doctorBtn = document.getElementById('btn-doctor');
-    const patientBtn = document.getElementById('btn-patient');
+// --- REMOVED window.onload: Modules run safely on their own! ---
 
-    // Add a click event listener to show the admin login modal
-    if (adminBtn) {
-        adminBtn.addEventListener('click', () => {
-            openModal('adminLogin');
-        });
-    }
+// Select the buttons from the landing page
+const adminBtn = document.getElementById('btn-admin');
+const doctorBtn = document.getElementById('btn-doctor');
+const patientBtn = document.getElementById('btn-patient');
 
-    // Add a click event listener to show the doctor login modal
-    if (doctorBtn) {
-        doctorBtn.addEventListener('click', () => {
-            openModal('doctorLogin');
-        });
-    }
+// Add a click event listener to show the admin login modal
+if (adminBtn) {
+    adminBtn.addEventListener('click', () => {
+        openModal('adminLogin');
+    });
+}
 
-    // Add a click event listener to show the patient login modal
-    if (patientBtn) {
-        patientBtn.addEventListener('click', () => {
-            openModal('patientLogin');
-        });
-    }
-};
+// Add a click event listener to show the doctor login modal
+if (doctorBtn) {
+    doctorBtn.addEventListener('click', () => {
+        openModal('doctorLogin');
+    });
+}
+
+// Add a click event listener to show the patient login modal
+if (patientBtn) {
+    patientBtn.addEventListener('click', () => {
+        openModal('patientLogin');
+    });
+}
+
 
 /**
  * Handle Admin Login Submission

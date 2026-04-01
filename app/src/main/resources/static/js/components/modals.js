@@ -38,10 +38,11 @@ export function openModal(type) {
         <button class="dashboard-btn" id="saveDoctorBtn">Save</button>
       `;
     } else if (type === 'patientLogin') {
+        // FIX: Unique IDs for Patient
         modalContent = `
         <h2>Patient Login</h2>
-        <input type="text" id="email" placeholder="Email" class="input-field">
-        <input type="password" id="password" placeholder="Password" class="input-field">
+        <input type="text" id="patientEmail" placeholder="Email" class="input-field">
+        <input type="password" id="patientPassword" placeholder="Password" class="input-field">
         <button class="dashboard-btn" id="loginBtn">Login</button>
       `;
     }
@@ -57,17 +58,19 @@ export function openModal(type) {
     `;
 
     } else if (type === 'adminLogin') {
+        // FIX: Unique IDs for Admin
         modalContent = `
         <h2>Admin Login</h2>
-        <input type="text" id="username" name="username" placeholder="Username" class="input-field">
-        <input type="password" id="password" name="password" placeholder="Password" class="input-field">
+        <input type="text" id="adminUsername" name="username" placeholder="Username" class="input-field">
+        <input type="password" id="adminPassword" name="password" placeholder="Password" class="input-field">
         <button class="dashboard-btn" id="adminLoginBtn" >Login</button>
       `;
     } else if (type === 'doctorLogin') {
+        // FIX: Unique IDs for Doctor
         modalContent = `
         <h2>Doctor Login</h2>
-        <input type="text" id="email" placeholder="Email" class="input-field">
-        <input type="password" id="password" placeholder="Password" class="input-field">
+        <input type="text" id="doctorEmail" placeholder="Email" class="input-field">
+        <input type="password" id="doctorPassword" placeholder="Password" class="input-field">
         <button class="dashboard-btn" id="doctorLoginBtn" >Login</button>
       `;
     }
@@ -79,23 +82,24 @@ export function openModal(type) {
         document.getElementById('modal').style.display = 'none';
     };
 
+    // FIX: Added 'window.' to all event handlers so the module can find them!
     if (type === "patientSignup") {
-        document.getElementById("signupBtn").addEventListener("click", signupPatient);
+        document.getElementById("signupBtn").addEventListener("click", window.signupPatient);
     }
 
     if (type === "patientLogin") {
-        document.getElementById("loginBtn").addEventListener("click", loginPatient);
+        document.getElementById("loginBtn").addEventListener("click", window.patientLoginHandler);
     }
 
     if (type === 'addDoctor') {
-        document.getElementById('saveDoctorBtn').addEventListener('click', adminAddDoctor);
+        document.getElementById('saveDoctorBtn').addEventListener('click', window.adminAddDoctor);
     }
 
     if (type === 'adminLogin') {
-        document.getElementById('adminLoginBtn').addEventListener('click', adminLoginHandler);
+        document.getElementById('adminLoginBtn').addEventListener('click', window.adminLoginHandler);
     }
 
     if (type === 'doctorLogin') {
-        document.getElementById('doctorLoginBtn').addEventListener('click', doctorLoginHandler);
+        document.getElementById('doctorLoginBtn').addEventListener('click', window.doctorLoginHandler);
     }
 }
